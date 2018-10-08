@@ -9,7 +9,7 @@ use this example to read data, run on raspberry pi with python3
 
 https://www.mathworks.com/help/thingspeak/continuously-collect-data-and-bulk-update-a-thingspeak-channel-using-a-raspberry-pi-board.html 
  but need to modify code if you use python3 (https://stackoverflow.com/questions/2792650/import-error-no-module-name-urllib2)
- https://stackoverflow.com/questions/30760728/python-3-urllib-produces-typeerror-post-data-should-be-bytes-or-an-iterable-of
+and https://stackoverflow.com/questions/30760728/python-3-urllib-produces-typeerror-post-data-should-be-bytes-or-an-iterable-of
 
 
 Part II
@@ -20,3 +20,14 @@ run on esp8266, read data from thingspeak and make decision to ON or OFF relay.
 
 
 
+Beersmith 
+
+
+Recipe
+https://beersmithrecipes.com/viewrecipe/635678/velfortjent-saison
+
+Yeast
+http://www.lallemandbrewing.com/product-details/abbaye-belgian-ale-yeast/
+
+
+Enjoy your beer.
