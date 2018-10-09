@@ -16,6 +16,7 @@ char auth[] = "";
 #define TRIGGER_PIN D3
 const int RELAY1 = D7;
 const int buzzer=D5;                        // Buzzer control port, default D5
+WidgetLED led1(1); // On led
 
 WiFiServer server(80);
 
@@ -145,7 +146,7 @@ bool decodeJSON(char *json) {
 
 void controlTemperature()
 {
-  Serial.println("Check condition.");
+  Serial.println("Condition checking ...");
   if (temperature >= max_temperature) {
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
@@ -187,7 +188,7 @@ void turnRelayOn()
   digitalWrite(RELAY1, HIGH);
   Serial.println("RELAY1 ON");
   digitalWrite(LED_BUILTIN, HIGH);  // turn on
-  // led1.on();
+  led1.on();
   // Blynk.virtualWrite(V1, 1);
   buzzer_sound();
   relayStatus = 1;
@@ -198,7 +199,7 @@ void turnRelayOff()
   digitalWrite(RELAY1, LOW);
   Serial.println("RELAY1 OFF");
   digitalWrite(LED_BUILTIN, LOW);  // turn off
-  // led1.off();  // blynk led
+  led1.off();  // blynk led
   // Blynk.virtualWrite(V1, 0);
   buzzer_sound();
   relayStatus = 0;
@@ -226,7 +227,9 @@ void buzzer_sound()
 
 void sendStatus()
 {
-  Blynk.virtualWrite(V1, digitalRead(RELAY1));
+
+  Serial.print("Send temperature status :");
+  Serial.println(temperature);
   Blynk.virtualWrite(V2, temperature);
 }
 
