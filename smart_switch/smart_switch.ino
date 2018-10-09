@@ -5,38 +5,46 @@
 #include <ESP8266WebServer.h>     //Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          //https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 #include <ThingSpeak.h>
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+
+// You should get Auth Token in the Blynk App.
+// Go to the Project Settings (nut icon).
+char auth[] = "";
+
 
 #define TRIGGER_PIN D3
 const int RELAY1 = D7;
 const int buzzer=D5;                        // Buzzer control port, default D5
 
-WiFiServer server(80); 
+WiFiServer server(80);
 
 char   host[] = "api.thingspeak.com"; // ThingSpeak address
 String APIkey = "596819";             // Thingspeak Read Key, works only if a PUBLIC viewable channel
 unsigned long channelID = 596819;
 char *writeAPIKey = "GPBO64VFP5PRX1BP";
 const int httpPort = 80;
- 
-const char *ssid     = "Red"; 
-const char *password = "12345678"; 
+
+const char *ssid     = "Red";
+const char *password = "12345678";
 WiFiClient client;
 const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
 Timer timer1, timer2;
+BlynkTimer timer;
 int max_result = 1;
 int temperature = 19;
-int max_temperature = 20;
-int min_temperature = 18;
+float max_temperature = 20.0;
+float min_temperature = 19.0;
 int relayStatus = 0;
 
 void setup()
 {
-  
+
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY1, OUTPUT);
   pinMode(TRIGGER_PIN, INPUT);
-  
+
   WiFi.begin(ssid,password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -47,28 +55,34 @@ void setup()
   }
   Serial.println();
   Serial.print("Connected, IP address: ");
-  Serial.println(WiFi.localIP()); 
+  Serial.println(WiFi.localIP());
 
+  Blynk.config(auth, "blynk.ogonan.com", 80);
+  Blynk.connect(3333);
   ThingSpeak.begin( client );
   timer1.every(15000, RetrieveTSChannelData);
   timer2.every(60000, controlTemperature);
+  timer.setInterval(15000L, sendStatus);
+
 }
 
 void loop()
 {
-  
+
   timer1.update();
   timer2.update();
-  
+  Blynk.run();
+  timer.run();
+
 }
 
 void RetrieveTSChannelData() {  // Receive data from Thingspeak
   static char responseBuffer[3*1024]; // Buffer for received data
-  client = server.available(); 
-  if (!client.connect(host, httpPort)) { 
-    Serial.println("connection failed"); 
-    return; 
-  } 
+  client = server.available();
+  if (!client.connect(host, httpPort)) {
+    Serial.println("connection failed");
+    return;
+  }
   String url = "/channels/" + APIkey; // Start building API request string
   url += "/fields/1.json?results=1";  // 5 is the results request number, so 5 are returned, 1 woudl return the last result received
   client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + host + "\r\n" + "Connection: close\r\n\r\n");
@@ -84,13 +98,13 @@ void RetrieveTSChannelData() {  // Receive data from Thingspeak
   client.stop();
 }
 
-bool skipResponseHeaders() { 
-  char endOfHeaders[] = "\r\n\r\n"; // HTTP headers end with an empty line 
-  client.setTimeout(HTTP_TIMEOUT); 
-  bool ok = client.find(endOfHeaders); 
-  if (!ok) { Serial.println("No response or invalid response!"); } 
-  return ok; 
-} 
+bool skipResponseHeaders() {
+  char endOfHeaders[] = "\r\n\r\n"; // HTTP headers end with an empty line
+  client.setTimeout(HTTP_TIMEOUT);
+  bool ok = client.find(endOfHeaders);
+  if (!ok) { Serial.println("No response or invalid response!"); }
+  return ok;
+}
 
 bool decodeJSON(char *json) {
   StaticJsonBuffer <3*1024> jsonBuffer;
@@ -112,7 +126,7 @@ bool decodeJSON(char *json) {
   String datetime    = root_data["updated_at"];
   Serial.println("\n\n Channel id: "+id+" Name: "+ name);
   Serial.println(" Readings last updated at: "+datetime);
-  
+
   for (int result = 0; result < max_result; result++){
     JsonObject& channel = root["feeds"][result]; // Now we can read 'feeds' values and so-on
     String entry_id     = channel["entry_id"];
@@ -132,23 +146,23 @@ bool decodeJSON(char *json) {
 void controlTemperature()
 {
   Serial.println("Check condition.");
-  if (temperature >= 20.0) {
+  if (temperature >= max_temperature) {
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
-      Serial.println("Turn On");  
+      Serial.println("Turn On");
       // sendThingSpeak();
     }
   }
-  else if (temperature <= 18) {
+  else if (temperature <= min_temperature) {
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
       // sendThingSpeak();
-    }    
+    }
   }
   else {
     Serial.print("Temperature OK! : ");
-    Serial.println(temperature);    
+    Serial.println(temperature);
   }
 }
 
@@ -210,12 +224,40 @@ void buzzer_sound()
   delay(300);
 }
 
+void sendStatus()
+{
+  Blynk.virtualWrite(V1, digitalRead(RELAY1));
+  Blynk.virtualWrite(V2, temperature);
+}
+
+BLYNK_WRITE(V3)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V3 to a variable
+  // You can also use:
+  // String i = param.asStr();
+  // double d = param.asDouble();
+  Serial.print("V3 Step H value is: ");
+  Serial.println(pinValue);
+  min_temperature = param.asFloat();
+}
+
+BLYNK_WRITE(V4)
+{
+  int pinValue = param.asInt(); // assigning incoming value from pin V4 to a variable
+  // You can also use:
+  // String i = param.asStr();
+  // double d = param.asDouble();
+  Serial.print("V4 Step H value is: ");
+  Serial.println(pinValue);
+  max_temperature = param.asFloat();
+}
+
 void sendThingSpeak()
 {
-  
+
     ThingSpeak.setField( 4,  relayStatus);
-    
-    
+
+
     int writeSuccess = ThingSpeak.writeFields( channelID, writeAPIKey );
     Serial.println(writeSuccess);
     Serial.println();
