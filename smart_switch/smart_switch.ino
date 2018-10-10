@@ -10,7 +10,7 @@
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
-char auth[] = "";
+char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 
 
 #define TRIGGER_PIN D3
@@ -33,7 +33,7 @@ const unsigned long HTTP_TIMEOUT = 10000;  // max respone time from server
 Timer timer1, timer2;
 BlynkTimer timer;
 int max_result = 1;
-int temperature = 19;
+float temperature = 19.0;
 float max_temperature = 20.0;
 float min_temperature = 19.0;
 int relayStatus = 0;
