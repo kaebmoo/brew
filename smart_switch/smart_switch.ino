@@ -84,6 +84,7 @@ void setup()
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
 
+  wifiManager.setConfigPortalTimeout(60);
   if (!wifiManager.autoConnect("ogoSwitch")) {
     Serial.println("failed to connect, we should reset as see if it connects");
     delay(3000);
@@ -206,12 +207,15 @@ bool decodeJSON(char *json) {
   String field1_name = root_data["field1"];
   String datetime    = root_data["updated_at"];
   Serial.println("\n\n Channel id: "+id+" Name: "+ name);
-  Serial.println(" Readings last updated at: "+datetime);
+  Serial.println(" Channel last updated at: "+datetime);
 
   for (int result = 0; result < max_result; result++){
     JsonObject& channel = root["feeds"][result]; // Now we can read 'feeds' values and so-on
+    String lastUpdated  = channel["created_at"];
     String entry_id     = channel["entry_id"];
     String field1value  = channel["field1"];
+    Serial.print(" Feeds last updated at: ");
+    Serial.print(lastUpdated);
     Serial.print(" Field1 entry number ["+entry_id+"] had a value of: ");
     Serial.println(field1value);
     temperature = field1value.toFloat();
