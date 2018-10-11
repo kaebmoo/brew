@@ -64,6 +64,7 @@ void setup()
   timer1.every(15000, RetrieveTSChannelData);
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
+  timer.setInterval(60000L, checkBlynkConnection);
 
 }
 
@@ -254,6 +255,18 @@ BLYNK_WRITE(V4)
   Serial.println(pinValue);
   max_temperature = param.asFloat();
 }
+
+void checkBlynkConnection() {
+  Serial.println("Check Blynk connection.");
+  if (!Blynk.connected()) {
+    if(Blynk.connect()) {
+      BLYNK_LOG("Blynk Reconnected");
+    } else {
+      BLYNK_LOG("Blynk Not reconnected");
+    }
+  }
+}
+
 
 void sendThingSpeak()
 {

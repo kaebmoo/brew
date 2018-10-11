@@ -25,6 +25,30 @@ from datetime import datetime
 
 from ruuvitag_sensor.ruuvitag import RuuviTag
 
+import microgear.client as microgear
+import logging
+
+appid = 'Brew'
+gearkey = '3aewfy0NnL6pFnZ'
+gearsecret =  'JrF5MRNuP8nC5uKQWAraykXiQ'
+
+microgear.create(gearkey,gearsecret,appid,{'debugmode': False})
+
+def connection():
+    logging.info("Now I am connected with netpie")
+
+def subscription(topic,message):
+    logging.info(topic+" "+message)
+
+def disconnect():
+    logging.debug("disconnect is work")
+
+microgear.setalias("BrewGateway")
+microgear.on_connect = connection
+microgear.on_message = subscription
+microgear.on_disconnect = disconnect
+microgear.connect(False)
+
 # Enter Your API key here
 myAPI = 'GPBO64VFP5PRX1BP'
 # URL where we will send the data, Don't change it
@@ -36,13 +60,14 @@ channelID = "596819" # Replace YOUR-CHANNELID with your channel ID
 url = "https://api.thingspeak.com/update?api_key=%s" % writeAPIkey
 messageBuffer = []
 fields = ''
+_temperature = 19.0
 
 lastConnectionTime = time.time() # Track the last connection time
 lastUpdateTime = time.time() # Track the last update time
-postingInterval = 15 # Post data once every 2 minutes
-updateInterval = 5 # Update once every 15 seconds
+postingInterval = 60 # Post data once every 1 minutes
+updateInterval = 15 # Update once every 15 seconds
 
-# Change here your own device's mac-address
+# Change here your own device's mac-address ruuvitag
 mac = 'F4:9D:33:83:30:29'
 
 print('Starting')
@@ -56,6 +81,7 @@ def httpRequest():
     # global messageBuffer
     global url
     global fields
+    global _temperature
     # data = json.dumps({'write_api_key':writeAPIkey,'updates':messageBuffer}) # Format the json data buffer
     url_req = url + fields
     print(url_req)
@@ -72,6 +98,8 @@ def httpRequest():
     try:
         response = urllib.request.urlopen(req) # Make the request
         print(response.getcode()) # A 202 indicates that the server has accepted the request
+        print('sending data to netpie\n')
+        microgear.publish("/brew/temperature",_temperature,{'retain':True});
     except urllib.request.HTTPError as e:
     	print(e.code) # Print the error code
     # messageBuffer = [] # Reinitialize the message buffer
@@ -117,13 +145,14 @@ def updatesJson():
     lastUpdateTime = time.time()
 
 while True:
-    # Wait for 2 seconds and start over again
+    # Wait for 10 seconds and start over again
     try:
         #sensor_node, temperature, humidity, pressure, battery = ruuvitag_data()
         if time.time() - lastUpdateTime >= updateInterval:
 	        updatesJson()
 
         sensor_node, temperature, humidity, pressure, battery = ruuvitag_data()
+        _temperature = temperature
         # Clear screen and print sensor data
         # os.system('clear')
         print('Press Ctrl+C to quit.\n\r\n\r')
@@ -136,7 +165,7 @@ while True:
         print('\n\r\n\r.......')
 
 
-        time.sleep(2)
+        time.sleep(10)
     except KeyboardInterrupt:
         # When Ctrl+C is pressed execution of the while loop is stopped
         print('Exit')
