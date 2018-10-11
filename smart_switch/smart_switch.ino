@@ -7,6 +7,9 @@
 #include <ThingSpeak.h>
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
+#include <MicroGear.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 // You should get Auth Token in the Blynk App.
 // Go to the Project Settings (nut icon).
@@ -21,10 +24,16 @@ WidgetLED led1(1); // On led
 WiFiServer server(80);
 
 char   host[] = "api.thingspeak.com"; // ThingSpeak address
-String APIkey = "596819";             // Thingspeak Read Key, works only if a PUBLIC viewable channel
-unsigned long channelID = 596819;
-char *writeAPIKey = "GPBO64VFP5PRX1BP";
+String APIkey = "596819";             // Thingspeak Read Key, works only if a PUBLIC viewable channel, // brew channel temperature, humidity, battery
+
+unsigned long channelID = 599633;
+char *writeAPIKey = "D7SO040ZUOCLWMPE"; // brew monitoring channel
 const int httpPort = 80;
+
+#define APPID   "Brew"
+#define KEY     "3aewfy0NnL6pFnZ"
+#define SECRET  "JrF5MRNuP8nC5uKQWAraykXiQ"
+#define ALIAS   "ogoSwitch"
 
 const char *ssid     = "Red";
 const char *password = "12345678";
@@ -37,6 +46,16 @@ float temperature = 19.0;
 float max_temperature = 20.0;
 float min_temperature = 19.0;
 int relayStatus = 0;
+int blynkStatus = 0;
+int delayTime = 0;
+unsigned long currenttime;
+
+MicroGear microgear(client);
+
+WiFiUDP ntpUDP;
+// By default 'pool.ntp.org' is used with 60 seconds update interval and
+// no offset
+NTPClient timeClient(ntpUDP);
 
 void setup()
 {
@@ -46,6 +65,38 @@ void setup()
   pinMode(RELAY1, OUTPUT);
   pinMode(TRIGGER_PIN, INPUT);
 
+  
+
+  /* Add Event listeners */
+  /* Call onMsghandler() when new message arraives */
+  microgear.on(MESSAGE,onMsghandler);
+
+  /* Call onFoundgear() when new gear appear */
+  microgear.on(PRESENT,onFoundgear);
+
+  /* Call onLostgear() when some gear goes offline */
+  microgear.on(ABSENT,onLostgear);
+
+  /* Call onConnected() when NETPIE connection is established */
+  microgear.on(CONNECTED,onConnected);
+
+  //WiFiManager
+  //Local intialization. Once its business is done, there is no need to keep it around
+  WiFiManager wifiManager;
+
+  if (!wifiManager.autoConnect("ogoSwitch")) {
+    Serial.println("failed to connect, we should reset as see if it connects");
+    delay(3000);
+    ESP.reset();
+    delay(5000);
+  }
+  //if you get here you have connected to the WiFi
+  Serial.println("connected...yeey :)");
+
+
+  Serial.println("local ip");
+  Serial.println(WiFi.localIP());
+  /*
   WiFi.begin(ssid,password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -54,28 +105,56 @@ void setup()
     //  ondemandWiFi();
     // }
   }
+
   Serial.println();
   Serial.print("Connected, IP address: ");
   Serial.println(WiFi.localIP());
-
+  */
+  
+  timeClient.begin();
   Blynk.config(auth, "blynk.ogonan.com", 80);
   Blynk.connect(3333);
+  blynkStatus = Blynk.connected();
   ThingSpeak.begin( client );
+  /* Initial with KEY, SECRET and also set the ALIAS here */
+  microgear.init(KEY,SECRET,ALIAS);
+
+  /* connect to NETPIE to a specific APPID */
+  microgear.connect(APPID);
+
   timer1.every(15000, RetrieveTSChannelData);
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
-
+  // timer.setInterval(15000L, checkMicrogearConnection);  
+  RetrieveTSChannelData();
+  controlTemperature();
+  sendStatus();
 }
 
 void loop()
 {
-
+  timeClient.update();
+  currenttime = timeClient.getEpochTime();
   timer1.update();
   timer2.update();
   Blynk.run();
   timer.run();
-
+  if (microgear.connected()) {
+    microgear.loop();  
+    delayTime = 0;
+  }
+  else {    
+      if (delayTime >= 5000) {
+          Serial.println("connection lost, reconnect...");
+          microgear.connect(APPID); 
+          delayTime = 0;
+      }
+      else {
+        delayTime += 100;
+      }
+    delay(100);
+  }
 }
 
 void RetrieveTSChannelData() {  // Receive data from Thingspeak
@@ -148,22 +227,27 @@ bool decodeJSON(char *json) {
 void controlTemperature()
 {
   Serial.println("Condition checking ...");
+  Serial.print("Time: ");
+  Serial.println(currenttime);
+  
   if (temperature >= max_temperature) {
+    Serial.print("High Temperature");
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
       Serial.println("Turn On");
-      // sendThingSpeak();
+      sendThingSpeak();
     }
   }
   else if (temperature <= min_temperature) {
+    Serial.print("Low Temperature");
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
-      // sendThingSpeak();
+      sendThingSpeak();
     }
   }
   else {
-    Serial.print("Temperature OK! : ");
+    Serial.print("Temperature is in range.");
     Serial.println(temperature);
   }
 }
@@ -228,7 +312,12 @@ void buzzer_sound()
 
 void sendStatus()
 {
-
+  if (relayStatus) {
+    led1.on();
+  }
+  else {
+    led1.off();
+  }
   Serial.print("Send temperature status :");
   Serial.println(temperature);
   Blynk.virtualWrite(V2, temperature);
@@ -258,23 +347,66 @@ BLYNK_WRITE(V4)
 
 void checkBlynkConnection() {
   Serial.println("Check Blynk connection.");
-  if (!Blynk.connected()) {
+  blynkStatus = Blynk.connected();
+  if (!blynkStatus) {
     if(Blynk.connect()) {
       BLYNK_LOG("Blynk Reconnected");
     } else {
-      BLYNK_LOG("Blynk Not reconnected");
+      BLYNK_LOG("Blynk Not Reconnected");
     }
   }
 }
 
+void checkMicrogearConnection()
+{
+  if (microgear.connected()) {
+    Serial.println("connected");
+  }
+  else {
+    Serial.println("connection lost, reconnect...");
+    microgear.connect(APPID);
+  }
+}
 
 void sendThingSpeak()
 {
 
-    ThingSpeak.setField( 4,  relayStatus);
+    ThingSpeak.setField( 1,  relayStatus);
 
 
     int writeSuccess = ThingSpeak.writeFields( channelID, writeAPIKey );
     Serial.println(writeSuccess);
     Serial.println();
+}
+
+/* If a new message arrives, do this */
+void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
+    Serial.print("Incoming message --> ");
+    msg[msglen] = '\0';
+    Serial.println((char *)msg);
+
+    Serial.print("Topic: ");
+    Serial.println(topic);
+}
+
+void onFoundgear(char *attribute, uint8_t* msg, unsigned int msglen) {
+    Serial.print("Found new member --> ");
+    for (int i=0; i<msglen; i++)
+        Serial.print((char)msg[i]);
+    Serial.println();
+}
+
+void onLostgear(char *attribute, uint8_t* msg, unsigned int msglen) {
+    Serial.print("Lost member --> ");
+    for (int i=0; i<msglen; i++)
+        Serial.print((char)msg[i]);
+    Serial.println();
+}
+
+/* When a microgear is connected, do this */
+void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
+    Serial.println("Connected to NETPIE...");
+    /* Set the alias of this microgear ALIAS */
+    microgear.setAlias(ALIAS);
+    microgear.subscribe("/brew/temperature");
 }
