@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <time.h>
+#include <inttypes.h>
+
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
 #include "Timer.h"
@@ -65,7 +69,7 @@ void setup()
   pinMode(RELAY1, OUTPUT);
   pinMode(TRIGGER_PIN, INPUT);
 
-  
+
 
   /* Add Event listeners */
   /* Call onMsghandler() when new message arraives */
@@ -111,7 +115,7 @@ void setup()
   Serial.print("Connected, IP address: ");
   Serial.println(WiFi.localIP());
   */
-  
+
   timeClient.begin();
   Blynk.config(auth, "blynk.ogonan.com", 80);
   Blynk.connect(3333);
@@ -127,7 +131,7 @@ void setup()
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
-  // timer.setInterval(15000L, checkMicrogearConnection);  
+  // timer.setInterval(15000L, checkMicrogearConnection);
   RetrieveTSChannelData();
   controlTemperature();
   sendStatus();
@@ -142,13 +146,13 @@ void loop()
   Blynk.run();
   timer.run();
   if (microgear.connected()) {
-    microgear.loop();  
+    microgear.loop();
     delayTime = 0;
   }
-  else {    
+  else {
       if (delayTime >= 5000) {
           Serial.println("connection lost, reconnect...");
-          microgear.connect(APPID); 
+          microgear.connect(APPID);
           delayTime = 0;
       }
       else {
@@ -219,6 +223,19 @@ bool decodeJSON(char *json) {
     Serial.print(" Field1 entry number ["+entry_id+"] had a value of: ");
     Serial.println(field1value);
     temperature = field1value.toFloat();
+
+    char str_buf[] = "2018-10-10T13:39:50Z";
+    memset(str_buf, 0, sizeof(str_buf));
+    // Serial.println(strlen(lastUpdated.c_str()));
+    // Serial.println(strlen(str_buf));
+    if(strlen(lastUpdated.c_str()) <= 20) {
+      strcpy(str_buf, lastUpdated.c_str());
+      long t_lastUpdated = human2Epoch(str_buf);
+      Serial.print(" Epoch last updated: ");
+      Serial.print(t_lastUpdated);
+      Serial.print(" Current time: ");
+      Serial.println(currenttime);
+    }
   }
 }
   //Thing speak response to GET request(headers removed) and /result=1:
@@ -233,7 +250,7 @@ void controlTemperature()
   Serial.println("Condition checking ...");
   Serial.print("Time: ");
   Serial.println(currenttime);
-  
+
   if (temperature >= max_temperature) {
     Serial.print("High Temperature");
     if (digitalRead(RELAY1) == LOW) {
@@ -413,4 +430,67 @@ void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
     /* Set the alias of this microgear ALIAS */
     microgear.setAlias(ALIAS);
     microgear.subscribe("/brew/temperature");
+}
+
+long human2Epoch(char str_buf[21])
+{
+
+  struct tm t;
+  time_t t_of_day;
+  //char str_buf[] = "2018-10-10T13:39:50Z";
+  uintmax_t year, month, day, hour, min, sec;
+  char c_year[5], c_month[3], c_day[3], c_hour[3], c_min[3], c_sec[3];
+
+  c_year[0] = str_buf[0];
+  c_year[1] = str_buf[1];
+  c_year[2] = str_buf[2];
+  c_year[3] = str_buf[3];
+  c_year[4] = '\0';
+  c_month[0] = str_buf[5];
+  c_month[1] = str_buf[6];
+  c_month[2] = '\0';
+  c_day[0] = str_buf[8];
+  c_day[1] = str_buf[9];
+  c_day[2] = '\0';
+  c_hour[0] = str_buf[11];
+  c_hour[1] = str_buf[12];
+  c_hour[2] = '\0';
+  c_min[0] = str_buf[14];
+  c_min[1] = str_buf[15];
+  c_min[2] = '\0';
+  c_sec[0] = str_buf[17];
+  c_sec[1] = str_buf[18];
+  c_sec[2] = '\0';
+
+  /*
+  year = strtoumax(c_year, NULL, 10);
+  month = strtoumax(c_month, NULL, 10);
+  day = strtoumax(c_day, NULL, 10);
+  hour = strtoumax(c_hour, NULL, 10);
+  min = strtoumax(c_min, NULL, 10);
+  sec = strtoumax(c_sec, NULL, 10);
+  *
+  *
+   */
+
+   year = atoi(c_year);
+   month = atoi(c_month);
+   day = atoi(c_day);
+   hour = atoi(c_hour);
+   min = atoi(c_min);
+   sec = atoi(c_sec);
+
+  t.tm_year = year-1900;
+  t.tm_mon = month-1;           // Month, 0 - jan
+  t.tm_mday = day;          // Day of the month
+  t.tm_hour = hour;
+  t.tm_min = min;
+  t.tm_sec = sec;
+  t.tm_isdst = -1;        // Is DST on? 1 = yes, 0 = no, -1 = unknown
+  t_of_day = mktime(&t);
+
+  // printf("seconds since the Epoch: %ld\n", (long) t_of_day);
+
+  return((long) t_of_day);
+
 }
