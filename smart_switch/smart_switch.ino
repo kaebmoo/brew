@@ -127,7 +127,7 @@ void setup()
   /* connect to NETPIE to a specific APPID */
   microgear.connect(APPID);
 
-  timer1.every(15000, RetrieveTSChannelData);
+  timer1.every(60000, RetrieveTSChannelData);
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
@@ -252,7 +252,7 @@ void controlTemperature()
   Serial.println(currenttime);
 
   if (temperature >= max_temperature) {
-    Serial.print("High Temperature");
+    Serial.println("High Temperature");
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
       Serial.println("Turn On");
@@ -260,7 +260,7 @@ void controlTemperature()
     }
   }
   else if (temperature <= min_temperature) {
-    Serial.print("Low Temperature");
+    Serial.println("Low Temperature");
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
@@ -271,6 +271,7 @@ void controlTemperature()
     Serial.print("Temperature is in range.");
     Serial.println(temperature);
   }
+  microgear.publish("/brew/temperature/status", temperature);
 }
 
 void ondemandWiFi()
