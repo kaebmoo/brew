@@ -135,6 +135,12 @@ void setup()
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
   // timer.setInterval(15000L, checkMicrogearConnection);
+ 
+  // update time 
+  timeClient.update();
+  currenttime = timeClient.getEpochTime();
+  
+  
   RetrieveTSChannelData();
   controlTemperature();
   sendStatus();
@@ -142,19 +148,23 @@ void setup()
 
 void loop()
 {
+  // update time 
   timeClient.update();
   currenttime = timeClient.getEpochTime();
+
+  // scheduling 
   timer1.update();
   timer2.update();
   Blynk.run();
   timer.run();
+  
   if (microgear.connected()) {
     microgear.loop();
     delayTime = 0;
   }
   else {
       if (delayTime >= 5000) {
-          Serial.println("connection lost, reconnect...");
+          Serial.println("Netpie connection lost, reconnect...");
           microgear.connect(APPID);
           delayTime = 0;
       }
@@ -250,10 +260,12 @@ bool decodeJSON(char *json) {
 
 void controlTemperature()
 {
+  String message = "";
+  
   Serial.println("Condition checking ...");
-  Serial.print(" Epoch last updated: ");
-  Serial.print(t_lastUpdated);
-  Serial.print("Time: ");
+  Serial.print(" Epoch last updated time: ");
+  Serial.println(t_lastUpdated);
+  Serial.print("Current time: ");
   Serial.println(currenttime);
 
   if ((currenttime - t_lastUpdated) > 7200) {
@@ -262,30 +274,38 @@ void controlTemperature()
 
   if (temperature >= max_temperature) {
     Serial.println("High Temperature");
+    message = "High Temperature, ";
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
       Serial.println("Turn On");
       sendThingSpeak();
-      microgear.publish("/brew/temperature/message", "High Temperature.");
     }
   }
   else if (temperature <= min_temperature) {
     Serial.println("Low Temperature");
+    message = "Low Temperature, ";
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
-      sendThingSpeak();
-      microgear.publish("/brew/temperature/message", "Low Temperature.");
+      sendThingSpeak();      
     }
   }
   else {
     Serial.print("Temperature is in range.");
     Serial.println(temperature);
-    microgear.publish("/brew/temperature/message", "Temperature is in range.");
+    message = "Temperature is in range, ";
+    
   }
-  microgear.publish("/brew/temperature/status", temperature);
-  microgear.publish("/brew/temperature/min", min_temperature);
-  microgear.publish("/brew/temperature/max", max_temperature);
+  String status = message + (String) temperature + ", min: " + (String) min_temperature + ", max: " + (String) max_temperature;
+  Serial.println("Publish status to netpie: " + status);
+  if (!microgear.connected()) {
+    microgear.connect(APPID);
+    microgear.publish("/brew/temperature/status", status, true);
+  }
+  else {
+    microgear.publish("/brew/temperature/status", status, true);
+  }
+    
 }
 
 void ondemandWiFi()
@@ -354,7 +374,7 @@ void sendStatus()
   else {
     led1.off();
   }
-  Serial.print("Send temperature status :");
+  Serial.print("Send temperature status to blynk: ");
   Serial.println(temperature);
   Blynk.virtualWrite(V2, temperature);
 }
@@ -387,7 +407,7 @@ BLYNK_CONNECTED()
   // Blynk.syncAll();
 
   int relay_status = digitalRead(RELAY1);
-  Blynk.virtualWrite(V1, relay_status);
+
   if (relay_status == 1) {
     led1.on();
   }
@@ -452,6 +472,7 @@ void sendThingSpeak()
 
 
     int writeSuccess = ThingSpeak.writeFields( channelID, writeAPIKey );
+    Serial.print("Return code from ThingSpeak: ");
     Serial.println(writeSuccess);
     Serial.println();
 }
@@ -465,11 +486,13 @@ void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
     Serial.print("Topic: ");
     Serial.println(topic);
 
-    if (strcmp(topic, "/brew/switch") == 0) {
+    if (strcmp(topic, "/Brew/brew/switch") == 0) {
       if ((char)msg[0] == '1') {
+        Serial.println("Turn Relay ON.");
         turnRelayOn();
       }
       else if ((char)msg[0] == '0') {
+        Serial.println("Turn Relay OFF.");
         turnRelayOff();
       }
     }
