@@ -464,6 +464,15 @@ void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
 
     Serial.print("Topic: ");
     Serial.println(topic);
+
+    if (strcmp(topic, "/brew/switch") == 0) {
+      if ((char)msg[0] == '1') {
+        turnRelayOn();
+      }
+      else if ((char)msg[0] == '0') {
+        turnRelayOff();
+      }
+    }
 }
 
 void onFoundgear(char *attribute, uint8_t* msg, unsigned int msglen) {
@@ -486,6 +495,7 @@ void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
     /* Set the alias of this microgear ALIAS */
     microgear.setAlias(ALIAS);
     microgear.subscribe("/brew/temperature");
+    microgear.subscribe("/brew/switch");
 }
 
 long human2Epoch(char str_buf[21])
