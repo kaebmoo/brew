@@ -53,6 +53,9 @@ int relayStatus = 0;
 int blynkStatus = 0;
 int delayTime = 0;
 unsigned long currenttime;
+unsigned long t_lastUpdated;
+bool blynkConnectedResult = false;
+int blynkreconnect = 0;
 
 MicroGear microgear(client);
 
@@ -230,7 +233,7 @@ bool decodeJSON(char *json) {
     // Serial.println(strlen(str_buf));
     if(strlen(lastUpdated.c_str()) <= 20) {
       strcpy(str_buf, lastUpdated.c_str());
-      long t_lastUpdated = human2Epoch(str_buf);
+      t_lastUpdated = human2Epoch(str_buf);
       Serial.print(" Epoch last updated: ");
       Serial.print(t_lastUpdated);
       Serial.print(" Current time: ");
@@ -248,8 +251,14 @@ bool decodeJSON(char *json) {
 void controlTemperature()
 {
   Serial.println("Condition checking ...");
+  Serial.print(" Epoch last updated: ");
+  Serial.print(t_lastUpdated);
   Serial.print("Time: ");
   Serial.println(currenttime);
+
+  if ((currenttime - t_lastUpdated) > 7200) {
+    Serial.println("Temperature data is not updated for 2 hours.");
+  }
 
   if (temperature >= max_temperature) {
     Serial.println("High Temperature");
@@ -257,6 +266,7 @@ void controlTemperature()
       turnRelayOn();
       Serial.println("Turn On");
       sendThingSpeak();
+      microgear.publish("/brew/temperature/message", "High Temperature.");
     }
   }
   else if (temperature <= min_temperature) {
@@ -265,13 +275,17 @@ void controlTemperature()
       turnRelayOff();
       Serial.println("Turn Off");
       sendThingSpeak();
+      microgear.publish("/brew/temperature/message", "Low Temperature.");
     }
   }
   else {
     Serial.print("Temperature is in range.");
     Serial.println(temperature);
+    microgear.publish("/brew/temperature/message", "Temperature is in range.");
   }
   microgear.publish("/brew/temperature/status", temperature);
+  microgear.publish("/brew/temperature/min", min_temperature);
+  microgear.publish("/brew/temperature/max", max_temperature);
 }
 
 void ondemandWiFi()
@@ -367,14 +381,55 @@ BLYNK_WRITE(V4)
   max_temperature = param.asFloat();
 }
 
-void checkBlynkConnection() {
+BLYNK_CONNECTED()
+{
+  Serial.println("Blynk Connected");
+  // Blynk.syncAll();
+
+  int relay_status = digitalRead(RELAY1);
+  Blynk.virtualWrite(V1, relay_status);
+  if (relay_status == 1) {
+    led1.on();
+  }
+  else {
+    led1.off();
+  }
+
+  Blynk.syncVirtual(V3);  // min temperature
+  Blynk.syncVirtual(V4);  // max temperature
+
+}
+
+void checkBlynkConnection()
+{
+  int mytimeout;
+
   Serial.println("Check Blynk connection.");
-  blynkStatus = Blynk.connected();
-  if (!blynkStatus) {
-    if(Blynk.connect()) {
-      BLYNK_LOG("Blynk Reconnected");
-    } else {
-      BLYNK_LOG("Blynk Not Reconnected");
+  blynkConnectedResult = Blynk.connected();
+  if (!blynkConnectedResult) {
+    Serial.println("Blynk not connected");
+    mytimeout = millis() / 1000;
+    Serial.println("Blynk trying to reconnect.");
+    while (!blynkConnectedResult) {
+      blynkConnectedResult = Blynk.connect(3333);
+      Serial.print(".");
+      if((millis() / 1000) > mytimeout + 3) { // try for less than 4 seconds
+        Serial.println("Blynk reconnect timeout.");
+        break;
+      }
+    }
+  }
+  if (blynkConnectedResult) {
+      Serial.println("Blynk connected");
+  }
+  else {
+    Serial.println("Blynk not connected");
+    Serial.print("blynkreconnect: ");
+    Serial.println(blynkreconnect);
+    blynkreconnect++;
+    if (blynkreconnect >= 10) {
+      // delay(60000);
+      // ESP.reset();
     }
   }
 }
