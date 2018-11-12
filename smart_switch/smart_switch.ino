@@ -448,6 +448,7 @@ void checkBlynkConnection()
     Serial.println(blynkreconnect);
     blynkreconnect++;
     if (blynkreconnect >= 10) {
+      blynkreconnect = 0;
       // delay(60000);
       // ESP.reset();
     }
