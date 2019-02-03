@@ -21,7 +21,9 @@ char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 
 
 #define TRIGGER_PIN D3
-const int RELAY1 = D7;
+#define WATCHDOG_PIN D3
+// const int RELAY1 = D7;
+const int RELAY1 = D1;
 const int buzzer=D5;                        // Buzzer control port, default D5
 WidgetLED led1(1); // On led
 
@@ -57,7 +59,7 @@ unsigned long t_lastUpdated;
 bool blynkConnectedResult = false;
 int blynkreconnect = 0;
 
-MicroGear microgear(client);
+// MicroGear microgear(client);
 
 WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
@@ -70,22 +72,22 @@ void setup()
   Serial.begin(115200);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(RELAY1, OUTPUT);
-  pinMode(TRIGGER_PIN, INPUT);
-
+  pinMode(WATCHDOG_PIN, OUTPUT);
+  pinMode(buzzer, OUTPUT);
 
 
   /* Add Event listeners */
   /* Call onMsghandler() when new message arraives */
-  microgear.on(MESSAGE,onMsghandler);
+  // microgear.on(MESSAGE,onMsghandler);
 
   /* Call onFoundgear() when new gear appear */
-  microgear.on(PRESENT,onFoundgear);
+  // microgear.on(PRESENT,onFoundgear);
 
   /* Call onLostgear() when some gear goes offline */
-  microgear.on(ABSENT,onLostgear);
+  // microgear.on(ABSENT,onLostgear);
 
   /* Call onConnected() when NETPIE connection is established */
-  microgear.on(CONNECTED,onConnected);
+  // microgear.on(CONNECTED,onConnected);
 
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
@@ -125,15 +127,17 @@ void setup()
   blynkStatus = Blynk.connected();
   ThingSpeak.begin( client );
   /* Initial with KEY, SECRET and also set the ALIAS here */
-  microgear.init(KEY,SECRET,ALIAS);
+  // microgear.init(KEY,SECRET,ALIAS);
 
   /* connect to NETPIE to a specific APPID */
-  microgear.connect(APPID);
+  // microgear.connect(APPID);
 
   timer1.every(60000, RetrieveTSChannelData);
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
+  // timer.setInterval(60000L, resetWatchdog);
+  
   // timer.setInterval(15000L, checkMicrogearConnection);
  
   // update time 
@@ -157,7 +161,8 @@ void loop()
   timer2.update();
   Blynk.run();
   timer.run();
-  
+
+  /*
   if (microgear.connected()) {
     microgear.loop();
     delayTime = 0;
@@ -173,7 +178,9 @@ void loop()
       }
     delay(100);
   }
+  */
 }
+
 
 void RetrieveTSChannelData() {  // Receive data from Thingspeak
   static char responseBuffer[3*1024]; // Buffer for received data
@@ -278,7 +285,7 @@ void controlTemperature()
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
       Serial.println("Turn On");
-      sendThingSpeak();
+      sendThingSpeak();      
     }
   }
   else if (temperature <= min_temperature) {
@@ -287,7 +294,7 @@ void controlTemperature()
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
-      sendThingSpeak();      
+      sendThingSpeak();
     }
   }
   else {
@@ -296,6 +303,9 @@ void controlTemperature()
     message = "Temperature is in range, ";
     
   }
+
+  // send data to netpie
+  /*
   String status = message + (String) temperature + ", min: " + (String) min_temperature + ", max: " + (String) max_temperature;
   Serial.println("Publish status to netpie: " + status);
   if (!microgear.connected()) {
@@ -305,6 +315,7 @@ void controlTemperature()
   else {
     microgear.publish("/brew/temperature/status", status, true);
   }
+  */
     
 }
 
@@ -455,6 +466,7 @@ void checkBlynkConnection()
   }
 }
 
+/*
 void checkMicrogearConnection()
 {
   if (microgear.connected()) {
@@ -465,6 +477,7 @@ void checkMicrogearConnection()
     microgear.connect(APPID);
   }
 }
+*/
 
 void sendThingSpeak()
 {
@@ -477,6 +490,7 @@ void sendThingSpeak()
     Serial.println(writeSuccess);
     Serial.println();
 }
+
 
 /* If a new message arrives, do this */
 void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
@@ -514,13 +528,15 @@ void onLostgear(char *attribute, uint8_t* msg, unsigned int msglen) {
 }
 
 /* When a microgear is connected, do this */
+/*
 void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
     Serial.println("Connected to NETPIE...");
-    /* Set the alias of this microgear ALIAS */
+    // Set the alias of this microgear ALIAS 
     microgear.setAlias(ALIAS);
     microgear.subscribe("/brew/temperature");
     microgear.subscribe("/brew/switch");
 }
+*/
 
 long human2Epoch(char str_buf[21])
 {
@@ -583,4 +599,13 @@ long human2Epoch(char str_buf[21])
 
   return((long) t_of_day);
 
+}
+
+
+void resetWatchdog() 
+{
+  Serial.println("Watchdog reset");
+  digitalWrite(WATCHDOG_PIN, HIGH);
+  delay(20);
+  digitalWrite(WATCHDOG_PIN, LOW);
 }

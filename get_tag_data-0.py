@@ -32,7 +32,7 @@ appid = 'Brew'
 gearkey = '3aewfy0NnL6pFnZ'
 gearsecret =  'JrF5MRNuP8nC5uKQWAraykXiQ'
 
-microgear.create(gearkey,gearsecret,appid,{'debugmode': True})
+microgear.create(gearkey,gearsecret,appid,{'debugmode': False})
 
 def connection():
     logging.info("Now I am connected with netpie")
@@ -82,7 +82,6 @@ def httpRequest():
     global url
     global fields
     global _temperature
-
     # data = json.dumps({'write_api_key':writeAPIkey,'updates':messageBuffer}) # Format the json data buffer
     url_req = url + fields
     print(url_req)
@@ -171,4 +170,3 @@ while True:
         # When Ctrl+C is pressed execution of the while loop is stopped
         print('Exit')
         break
-
