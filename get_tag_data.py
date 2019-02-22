@@ -47,7 +47,11 @@ microgear.setalias("BrewGateway")
 microgear.on_connect = connection
 microgear.on_message = subscription
 microgear.on_disconnect = disconnect
-microgear.connect(False)
+try:
+    microgear.connect(False)
+except:
+    print('Netpie Connection Error') # ConnectionError TimeoutError
+    raise
 
 # Enter Your API key here
 myAPI = 'GPBO64VFP5PRX1BP'
@@ -102,7 +106,8 @@ def httpRequest():
         print('sending data to netpie\n')
         microgear.publish("/brew/temperature",_temperature,{'retain':True});
     except urllib.request.HTTPError as e:
-    	print(e.code) # Print the error code
+        print(e.code) # Print the error code
+        raise
     # messageBuffer = [] # Reinitialize the message buffer
 
     global lastConnectionTime
@@ -171,4 +176,3 @@ while True:
         # When Ctrl+C is pressed execution of the while loop is stopped
         print('Exit')
         break
-
