@@ -94,7 +94,7 @@ def httpRequest():
 
     # requestHeaders = {"User-Agent":"mw.doc.bulk-update (Raspberry Pi)","Content-Type":"application/json","Content-Length":str(len(data))}
     # for key,val in requestHeaders.items(): # Set the headers
-    #	req.add_header(key,val)
+    #   req.add_header(key,val)
     ## req.add_data(data) # Add the data to the request
     # req.data = data.encode("utf-8")
     # print(req.data)
@@ -105,13 +105,28 @@ def httpRequest():
         print(response.getcode()) # A 202 indicates that the server has accepted the request
         print('sending data to netpie\n')
         microgear.publish("/brew/temperature",_temperature,{'retain':True});
-    except urllib.request.HTTPError as e:
-        print(e.code) # Print the error code
-        raise
-    # messageBuffer = [] # Reinitialize the message buffer
+        # except urllib.request.HTTPError as e:
+    except urllib.request.URLError as e:
+        if hasattr(e, 'reason'):
+            print('We failed to reach a server.')
+            print('Reason: ', e.reason)
+        elif hasattr(e, 'code'):
+            print('The server couldn\'t fulfill the request.')
+            print('Error code: ', e.code)
+    else:
+        # everything is fine
 
-    global lastConnectionTime
-    lastConnectionTime = time.time() # Update the connection time
+        global lastConnectionTime
+        lastConnectionTime = time.time() # Update the connection time
+        
+    # except urllib.request.HTTPError as e:
+        # print(e.code) # Print the error code
+        # raise
+
+    ## messageBuffer = [] # Reinitialize the message buffer
+    # global lastConnectionTime
+    # lastConnectionTime = time.time() # Update the connection time
+
 
 #while True:
 def ruuvitag_data():
@@ -147,7 +162,7 @@ def updatesJson():
 
     # If posting interval time has crossed 2 minutes update the ThingSpeak channel with your data
     if time.time() - lastConnectionTime >= postingInterval:
-    	httpRequest()
+        httpRequest()
     lastUpdateTime = time.time()
 
 while True:
@@ -155,7 +170,7 @@ while True:
     try:
         #sensor_node, temperature, humidity, pressure, battery = ruuvitag_data()
         if time.time() - lastUpdateTime >= updateInterval:
-	        updatesJson()
+            updatesJson()
 
         sensor_node, temperature, humidity, pressure, battery = ruuvitag_data()
         _temperature = temperature
