@@ -21,7 +21,7 @@ char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 
 
 #define TRIGGER_PIN D3
-#define WATCHDOG_PIN D3
+#define WATCHDOG_PIN D6
 // const int RELAY1 = D7;
 const int RELAY1 = D1;
 const int buzzer=D5;                        // Buzzer control port, default D5
@@ -74,6 +74,8 @@ void setup()
   pinMode(RELAY1, OUTPUT);
   pinMode(WATCHDOG_PIN, OUTPUT);
   pinMode(buzzer, OUTPUT);
+
+  digitalWrite(WATCHDOG_PIN, 0);
 
 
   /* Add Event listeners */
@@ -136,7 +138,7 @@ void setup()
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
-  // timer.setInterval(60000L, resetWatchdog);
+  timer.setInterval(60000L, resetWatchdog);
   
   // timer.setInterval(15000L, checkMicrogearConnection);
  
