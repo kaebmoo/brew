@@ -22,8 +22,8 @@ char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 
 #define TRIGGER_PIN D3
 #define WATCHDOG_PIN D6
-// const int RELAY1 = D7;
-const int RELAY1 = D1;
+const int RELAY1 = D7;
+// const int RELAY1 = D1;
 const int buzzer=D5;                        // Buzzer control port, default D5
 WidgetLED led1(1); // On led
 
