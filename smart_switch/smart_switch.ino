@@ -22,18 +22,18 @@ char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 
 #define TRIGGER_PIN D3
 #define WATCHDOG_PIN D6
-const int RELAY1 = D7;
-// const int RELAY1 = D1;
+// const int RELAY1 = D7;
+const int RELAY1 = D1;
 const int buzzer=D5;                        // Buzzer control port, default D5
 WidgetLED led1(1); // On led
 
 WiFiServer server(80);
 
 char   host[] = "api.thingspeak.com"; // ThingSpeak address
-String APIkey = "596819";             // Thingspeak Read Key, works only if a PUBLIC viewable channel, // brew channel temperature, humidity, battery
+String APIkey = "793984";             // Thingspeak Read Key, works only if a PUBLIC viewable channel, // brew channel temperature, humidity, battery
 
-unsigned long channelID = 599633;
-char *writeAPIKey = "D7SO040ZUOCLWMPE"; // brew monitoring channel
+unsigned long channelID = 793986;
+char *writeAPIKey = "VGLY9POK9GGK4WID"; // brew monitoring channel
 const int httpPort = 80;
 
 #define APPID   "Brew"
@@ -484,7 +484,7 @@ void checkMicrogearConnection()
 void sendThingSpeak()
 {
 
-    ThingSpeak.setField( 1,  relayStatus);
+    ThingSpeak.setField( 4,  relayStatus);
 
 
     int writeSuccess = ThingSpeak.writeFields( channelID, writeAPIKey );
