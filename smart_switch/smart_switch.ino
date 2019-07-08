@@ -26,9 +26,11 @@ char auth[] = "6e7a6ee669f44413b761b14cc9034616";
 const int RELAY1 = D1;
 const int buzzer=D5;                        // Buzzer control port, default D5
 WidgetLED led1(1); // On led
+WidgetLED led2(5); // temperature update LED
 
 WiFiServer server(80);
 
+char netpieHost[] = "api.netpie.io";
 char   host[] = "api.thingspeak.com"; // ThingSpeak address
 String APIkey = "793984";             // Thingspeak Read Key, works only if a PUBLIC viewable channel, // brew channel temperature, humidity, battery
 
@@ -59,7 +61,7 @@ unsigned long t_lastUpdated;
 bool blynkConnectedResult = false;
 int blynkreconnect = 0;
 
-// MicroGear microgear(client);
+MicroGear microgear(client);
 
 WiFiUDP ntpUDP;
 // By default 'pool.ntp.org' is used with 60 seconds update interval and
@@ -80,7 +82,7 @@ void setup()
 
   /* Add Event listeners */
   /* Call onMsghandler() when new message arraives */
-  // microgear.on(MESSAGE,onMsghandler);
+  microgear.on(MESSAGE,onMsghandler);
 
   /* Call onFoundgear() when new gear appear */
   // microgear.on(PRESENT,onFoundgear);
@@ -89,7 +91,7 @@ void setup()
   // microgear.on(ABSENT,onLostgear);
 
   /* Call onConnected() when NETPIE connection is established */
-  // microgear.on(CONNECTED,onConnected);
+  microgear.on(CONNECTED,onConnected);
 
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
@@ -129,12 +131,13 @@ void setup()
   blynkStatus = Blynk.connected();
   ThingSpeak.begin( client );
   /* Initial with KEY, SECRET and also set the ALIAS here */
-  // microgear.init(KEY,SECRET,ALIAS);
+  microgear.init(KEY,SECRET,ALIAS);
 
   /* connect to NETPIE to a specific APPID */
-  // microgear.connect(APPID);
+  microgear.connect(APPID);
 
-  timer1.every(60000, RetrieveTSChannelData);
+  // timer1.every(60000, RetrieveTSChannelData);
+  timer1.every(60000, RetrieveNetpie);
   timer2.every(60000, controlTemperature);
   timer.setInterval(15000L, sendStatus);
   timer.setInterval(60000L, checkBlynkConnection);
@@ -147,7 +150,8 @@ void setup()
   currenttime = timeClient.getEpochTime();
   
   
-  RetrieveTSChannelData();
+  // RetrieveTSChannelData();
+  RetrieveNetpie();
   controlTemperature();
   sendStatus();
 }
@@ -164,7 +168,7 @@ void loop()
   Blynk.run();
   timer.run();
 
-  /*
+  
   if (microgear.connected()) {
     microgear.loop();
     delayTime = 0;
@@ -180,9 +184,59 @@ void loop()
       }
     delay(100);
   }
-  */
+  
 }
 
+void RetrieveNetpie() 
+{
+  
+  static char responseBuffer[3*1024]; // Buffer for received data
+  client = server.available();
+  if (!client.connect(netpieHost, 80)) {
+    Serial.println("connection failed");
+    return;
+  }
+  String url = "/topic/Brew/brew/temperature?auth=3aewfy0NnL6pFnZ:JrF5MRNuP8nC5uKQWAraykXiQ";
+  client.print(String("GET ") + url + " HTTP/1.1\r\n" + "Host: " + netpieHost + "\r\n" + "Connection: close\r\n\r\n");
+  while (!skipResponseHeaders());                      // Wait until there is some data and skip headers
+  while (client.available()) {                         // Now receive the data
+    String line = client.readStringUntil('\n');
+    if ( line.indexOf('{',0) >= 0 ) {                  // Ignore data that is not likely to be JSON formatted, so must contain a '{'
+      Serial.println(line);                            // Show the text received
+      line.toCharArray(responseBuffer, line.length()); // Convert to char array for the JSON decoder
+      // decodeJSON(responseBuffer);                      // Decode the JSON text
+      char *json = responseBuffer;
+      char *jsonstart = strchr(json, '{'); // Skip characters until first '{' found and ignore length, if present
+      if (jsonstart == NULL) {
+        Serial.println("JSON data missing");
+        
+      }
+      json = jsonstart;
+      
+      const size_t capacity = JSON_ARRAY_SIZE(1) + JSON_OBJECT_SIZE(4);
+      DynamicJsonBuffer jsonBuffer(capacity);
+      JsonObject& root = jsonBuffer.parseObject(json);
+      if(!root.success()) {
+        Serial.println("parseObject() failed");      
+      }
+      else {
+        if (strcmp(root["topic"], "/Brew/brew/temperature") == 0) {
+      
+          String payload = root["payload"];
+          String lastupdate = root["lastUpdated"];
+          temperature = payload.toFloat();  
+          t_lastUpdated = lastupdate.toInt();
+          Serial.print("temperature: ");
+          Serial.println(temperature);
+          Serial.print("Last Updated: ");
+          Serial.println(t_lastUpdated);
+        }
+      }
+    }
+  }
+  client.stop();
+  
+}
 
 void RetrieveTSChannelData() {  // Receive data from Thingspeak
   static char responseBuffer[3*1024]; // Buffer for received data
@@ -279,6 +333,10 @@ void controlTemperature()
 
   if ((currenttime - t_lastUpdated) > 7200) {
     Serial.println("Temperature data is not updated for 2 hours.");
+    led2.on();
+  }
+  else {
+    led2.off();
   }
 
   if (temperature >= max_temperature) {
@@ -287,7 +345,7 @@ void controlTemperature()
     if (digitalRead(RELAY1) == LOW) {
       turnRelayOn();
       Serial.println("Turn On");
-      sendThingSpeak();      
+      // sendThingSpeak();      
     }
   }
   else if (temperature <= min_temperature) {
@@ -296,7 +354,7 @@ void controlTemperature()
     if (digitalRead(RELAY1) == HIGH) {
       turnRelayOff();
       Serial.println("Turn Off");
-      sendThingSpeak();
+      // sendThingSpeak();
     }
   }
   else {
@@ -468,7 +526,7 @@ void checkBlynkConnection()
   }
 }
 
-/*
+
 void checkMicrogearConnection()
 {
   if (microgear.connected()) {
@@ -479,7 +537,7 @@ void checkMicrogearConnection()
     microgear.connect(APPID);
   }
 }
-*/
+
 
 void sendThingSpeak()
 {
@@ -503,6 +561,14 @@ void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
     Serial.print("Topic: ");
     Serial.println(topic);
 
+
+    if (strcmp(topic, "/Brew/brew/temperature") == 0) {
+      String payload = (char *) msg;
+      temperature = payload.toFloat();
+      Serial.print("temperature: ");
+      Serial.println(temperature);
+    }
+    
     if (strcmp(topic, "/Brew/brew/switch") == 0) {
       if ((char)msg[0] == '1') {
         Serial.println("Turn Relay ON.");
@@ -513,6 +579,8 @@ void onMsghandler(char *topic, uint8_t* msg, unsigned int msglen) {
         turnRelayOff();
       }
     }
+
+    
 }
 
 void onFoundgear(char *attribute, uint8_t* msg, unsigned int msglen) {
@@ -530,7 +598,7 @@ void onLostgear(char *attribute, uint8_t* msg, unsigned int msglen) {
 }
 
 /* When a microgear is connected, do this */
-/*
+
 void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
     Serial.println("Connected to NETPIE...");
     // Set the alias of this microgear ALIAS 
@@ -538,7 +606,7 @@ void onConnected(char *attribute, uint8_t* msg, unsigned int msglen) {
     microgear.subscribe("/brew/temperature");
     microgear.subscribe("/brew/switch");
 }
-*/
+
 
 long human2Epoch(char str_buf[21])
 {
